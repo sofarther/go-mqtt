@@ -2,7 +2,6 @@ package broadcast
 
 import (
 	"context"
-	mqtt "github.com/eclipse/paho.mqtt.golang"
 	"log"
 	"mqtt2/initialize"
 	"sync"
@@ -43,7 +42,7 @@ func getAliveTopic() []string {
 	return result
 }
 
-func registerAliveTopic(ctx context.Context, client mqtt.Client)  {
+func registerAliveTopic(ctx context.Context)  {
 
 	aliveTopic := getAliveTopic()
 
@@ -63,7 +62,7 @@ func registerAliveTopic(ctx context.Context, client mqtt.Client)  {
 				ctx: cancelCtx,
 			}
 
-			go run(client, topicCh[v])
+			go run(topicCh[v])
 		}
 	}
 
@@ -76,14 +75,14 @@ func registerAliveTopic(ctx context.Context, client mqtt.Client)  {
 
 }
 
-func run(client mqtt.Client, topic *topicChannel)  {
+func run(topic *topicChannel)  {
 
 	for  {
 		select {
 		case m := <-topic.ch:
-			if token := client.Publish(topic.topic,1,false,m); token.Wait() && token.Error() != nil {
-				log.Fatalf("publish error: %s \n", token.Error())
-			}
+
+			publish(topic.topic, m, 1)
+
 		case <-topic.ctx.Done():
 			log.Println(topic.topic , " done")
 			return
@@ -95,15 +94,14 @@ func run(client mqtt.Client, topic *topicChannel)  {
 
 func Start(ctx context.Context)  {
 
-	client := newClient()
 	// 启动时 注册 活跃的 topic
-	registerAliveTopic(ctx, client)
+	registerAliveTopic(ctx)
    // 定时 处理 活跃的 topic
 	go func() {
 		for  {
 			select {
 			case <- time.After(5 * time.Second):
-				registerAliveTopic(ctx, client)
+				registerAliveTopic(ctx)
 			case <- ctx.Done():
 				return
 
@@ -113,6 +111,5 @@ func Start(ctx context.Context)  {
 	}()
 
 
-	// go registerAliveTopic(ctx, client)
 }
 
